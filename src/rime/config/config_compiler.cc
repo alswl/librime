@@ -9,6 +9,14 @@
 
 namespace rime {
 
+std::ostream& operator<< (std::ostream& stream, const Reference& reference) {
+  return stream << reference.repr();
+}
+
+std::ostream& operator<< (std::ostream& stream, const Dependency& dependency) {
+  return stream << dependency.repr();
+}
+
 struct ConfigDependencyGraph {
   map<string, of<ConfigResource>> resources;
   vector<of<ConfigItemRef>> node_stack;
@@ -97,8 +105,13 @@ static bool AppendToList(an<ConfigItemRef> target, an<ConfigList> list) {
     return false;
   auto existing_list = As<ConfigList>(**target);
   if (!existing_list) {
-    LOG(ERROR) << "trying to append list to other value";
-    return false;
+    if (!(**target)->empty()) {
+      LOG(ERROR) << "trying to append list to incompatible node type";
+      return false;
+    }
+    // convert empty node (usually map with only compiler directives) to list;
+    // refer to test case RimeConfigMergeTest.CreateListWithInplacePatch
+    existing_list = target->AsList();
   }
   if (list->empty())
     return true;
