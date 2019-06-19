@@ -4,20 +4,23 @@
 //
 // 2011-11-27 GONG Chen <chen.sst@gmail.com>
 //
-#include <fstream>
 #include <boost/filesystem.hpp>
-#include <rime/resource.h>
-#include <rime/service.h>
+#include <cfloat>
+#include <cmath>
+#include <fstream>
 #include <rime/algo/algebra.h>
 #include <rime/algo/utilities.h>
-#include <rime/dict/dictionary.h>
+#include <rime/dict/corrector.h>
 #include <rime/dict/dict_compiler.h>
 #include <rime/dict/dict_settings.h>
+#include <rime/dict/dictionary.h>
 #include <rime/dict/entry_collector.h>
 #include <rime/dict/preset_vocabulary.h>
 #include <rime/dict/prism.h>
-#include <rime/dict/table.h>
 #include <rime/dict/reverse_lookup_dictionary.h>
+#include <rime/dict/table.h>
+#include <rime/resource.h>
+#include <rime/service.h>
 
 namespace rime {
 
@@ -73,7 +76,7 @@ bool DictCompiler::Compile(const string &schema_file) {
       cc.ProcessFile(file_name);
     }
     if (settings.use_preset_vocabulary()) {
-      cc.ProcessFile(PresetVocabulary::DictFilePath());
+      cc.ProcessFile(PresetVocabulary::DictFilePath(settings.vocabulary()));
     }
     dict_file_checksum = cc.Checksum();
   }
@@ -175,7 +178,7 @@ bool DictCompiler::BuildTable(DictSettings* settings,
       auto e = New<DictEntry>();
       e->code.swap(code);
       e->text.swap(r.text);
-      e->weight = r.weight;
+      e->weight = log(r.weight > 0 ? r.weight : DBL_EPSILON);
       ls->push_back(e);
     }
     if (settings->sort_order() != "original") {
@@ -212,7 +215,7 @@ bool DictCompiler::BuildPrism(const string &schema_file,
   Syllabary syllabary;
   if (!table_->Load() || !table_->GetSyllabary(&syllabary) || syllabary.empty())
     return false;
-  // apply spelling algebra
+  // apply spelling algebra and prepare corrections (if enabled)
   Script script;
   if (!schema_file.empty()) {
     Config config;
@@ -230,6 +233,26 @@ bool DictCompiler::BuildPrism(const string &schema_file,
         script.clear();
       }
     }
+
+#if 0
+    // build corrector
+    bool enable_correction = false; // Avoid if initializer to comfort compilers
+    if (config.GetBool("translator/enable_correction", &enable_correction) &&
+        enable_correction) {
+      boost::filesystem::path corrector_path(prism_->file_name());
+      corrector_path.replace_extension("");
+      corrector_path.replace_extension(".correction.bin");
+      correction_ = New<EditDistanceCorrector>(RelocateToUserDirectory(prefix_, corrector_path.string()));
+      if (correction_->Exists()) {
+        correction_->Remove();
+      }
+      if (!correction_->Build(syllabary, &script,
+                         dict_file_checksum, schema_file_checksum) ||
+          !correction_->Save()) {
+        return false;
+      }
+    }
+#endif
   }
   if ((options_ & kDump) && !script.empty()) {
     boost::filesystem::path path(prism_->file_name());
@@ -239,12 +262,13 @@ bool DictCompiler::BuildPrism(const string &schema_file,
   // build .prism.bin
   {
     prism_->Remove();
-    if (!prism_->Build(syllabary, script.empty() ? NULL : &script,
+    if (!prism_->Build(syllabary, script.empty() ? nullptr : &script,
                        dict_file_checksum, schema_file_checksum) ||
         !prism_->Save()) {
       return false;
     }
   }
+
   return true;
 }
 

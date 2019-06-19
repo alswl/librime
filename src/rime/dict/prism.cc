@@ -22,7 +22,7 @@ struct node_t {
 
 }  // namespace
 
-const char kPrismFormat[] = "Rime::Prism/2.0";
+const char kPrismFormat[] = "Rime::Prism/3.0";
 
 const char kPrismFormatPrefix[] = "Rime::Prism/";
 const size_t kPrismFormatPrefixLen = sizeof(kPrismFormatPrefix) - 1;
@@ -122,7 +122,6 @@ bool Prism::Save() {
   }
   return ShrinkToFit();
 }
-
 bool Prism::Build(const Syllabary& syllabary,
                   const Script* script,
                   uint32_t dict_file_checksum,
@@ -240,7 +239,7 @@ bool Prism::HasKey(const string& key) {
   return value != -1;
 }
 
-bool Prism::GetValue(const string& key, int* value) {
+bool Prism::GetValue(const string& key, int* value) const {
   int result = trie_->exactMatchSearch<int>(key.c_str());
   if (result == -1) {
     return false;

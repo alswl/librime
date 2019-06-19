@@ -1,21 +1,32 @@
 setlocal
 
+set boost_build_options=toolset=msvc-14.1^
+ variant=release^
+ link=static^
+ threading=multi^
+ runtime-link=static^
+ define=BOOST_USE_WINAPI_VERSION=0x0501^
+ cxxflags="/Zc:threadSafeInit- "^
+ --with-date_time^
+ --with-filesystem^
+ --with-locale^
+ --with-regex^
+ --with-system^
+ --with-thread
+
 set nocache=0
 
 if not exist thirdparty.cached set nocache=1
-if not exist %BOOST_ROOT% set nocache=1
+if not exist %BOOST_ROOT%\stage set nocache=1
 
 if %nocache% == 1 (
-	pushd C:\Libraries
-	appveyor DownloadFile http://cfhcable.dl.sourceforge.net/project/boost/boost/1.61.0/boost_1_61_0.7z
-	7z x boost_1_61_0.7z | find "ing archive"
-	cd boost_1_61_0
+	pushd %BOOST_ROOT%
 	call .\bootstrap.bat
-	call .\b2.exe --prefix=%BOOST_ROOT% toolset=msvc-14.0 variant=release link=static threading=multi runtime-link=static define=BOOST_USE_WINAPI_VERSION=0x0501 cxxflags="/Zc:threadSafeInit- " --with-date_time --with-filesystem --with-locale --with-regex --with-signals --with-system --with-thread -q -d0 install
-	xcopy /e /i /y /q %BOOST_ROOT%\include\boost-1_61\boost %BOOST_ROOT%\boost
+	.\b2.exe %boost_build_options% -q -d0 stage
 	popd
 	if %ERRORLEVEL% NEQ 0 goto ERROR
 
+	git submodule update --init
 	call .\build.bat thirdparty
 	if %ERRORLEVEL% NEQ 0 goto ERROR
 
@@ -23,17 +34,32 @@ if %nocache% == 1 (
 	echo.
 	echo Thirdparty libraries installed.
 	echo.
-	goto EXIT
 ) else (
 	echo.
 	echo Last build date of cache is
 	type thirdparty.cached
 	echo.
-	goto EXIT
 )
+
+if defined RIME_PLUGINS (
+   for %%s in (%RIME_PLUGINS%) do call :install_plugin %%s
+)
+
+goto EXIT
 
 :ERROR
 set EXITCODE=%ERRORLEVEL%
 
 :EXIT
 exit /b %EXITCODE%
+
+:install_plugin
+set slug=%1
+echo "plugin: %slug%"
+set plugin_project=%slug:*/=%
+set plugin_dir=plugins/%plugin_project:librime-=%
+git clone --depth 1 "https://github.com/%slug%.git" %plugin_dir%
+if exist %plugin_dir%\appveyor.install.bat (
+  call %plugin_dir%\appveyor.install.bat
+)
+exit /b

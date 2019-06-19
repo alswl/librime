@@ -187,7 +187,7 @@ bool WorkspaceUpdate::Run(Deployer* deployer) {
   the<ResourceResolver> resolver(
       Service::instance().CreateResourceResolver(
           {"schema", "", ".schema.yaml"}));
-  auto build_schema = [&](const string& schema_id) {
+  auto build_schema = [&](const string& schema_id, bool as_dependency = false) {
     if (schemas.find(schema_id) != schemas.end())  // already built
       return;
     LOG(INFO) << "schema: " << schema_id;
@@ -199,8 +199,13 @@ bool WorkspaceUpdate::Run(Deployer* deployer) {
     else {
       schema_path = schemas[schema_id];
     }
-    if (schema_path.empty()) {
-      LOG(WARNING) << "missing schema file for '" << schema_id << "'.";
+    if (schema_path.empty() || !fs::exists(schema_path)) {
+      if (as_dependency) {
+        LOG(WARNING) << "missing input schema; skipped unsatisfied dependency: " << schema_id;
+      } else {
+        LOG(ERROR) << "missing input schema: " << schema_id;
+        ++failure;
+      }
       return;
     }
     the<DeploymentTask> t(new SchemaUpdate(schema_path));
@@ -228,7 +233,8 @@ bool WorkspaceUpdate::Run(Deployer* deployer) {
         if (!dependency)
           continue;
         const string& dependency_id = dependency->str();
-        build_schema(dependency_id);
+        bool as_dependency = true;
+        build_schema(dependency_id, as_dependency);
       }
     }
   }
@@ -477,15 +483,21 @@ bool SymlinkingPrebuiltDictionaries::Run(Deployer* deployer) {
     fs::path entry(test->path());
     if (fs::is_symlink(entry)) {
       try {
-        auto target_path = fs::canonical(entry);
-        if (target_path.has_parent_path() &&
-            fs::equivalent(shared_data_path, target_path.parent_path())) {
+        // a symlink becomes dangling if the target file is no longer provided
+        boost::system::error_code ec;
+        auto target_path = fs::canonical(entry, ec);
+        bool bad_link = bool(ec);
+        bool linked_to_shared_data =
+            !bad_link &&
+            target_path.has_parent_path() &&
+            fs::equivalent(shared_data_path, target_path.parent_path());
+        if (bad_link || linked_to_shared_data) {
           LOG(INFO) << "removing symlink: " << entry.filename().string();
           fs::remove(entry);
         }
       }
       catch (const fs::filesystem_error& ex) {
-        LOG(ERROR) << ex.what();
+        LOG(ERROR) << entry << ": " << ex.what();
         success = false;
       }
     }

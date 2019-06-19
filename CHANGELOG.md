@@ -1,3 +1,111 @@
+<a name="1.5.2"></a>
+## [1.5.2](https://github.com/rime/librime/compare/1.5.1...1.5.2) (2019-06-17)
+
+
+### Bug Fixes
+
+* **user_dictionary, contextual_translation:** fix user phrase quality; order contextual suggestions by type ([69d5c32](https://github.com/rime/librime/commit/69d5c32))
+
+
+
+<a name="1.5.1"></a>
+## [1.5.1](https://github.com/rime/librime/compare/1.5.0...1.5.1) (2019-06-16)
+
+
+### Bug Fixes
+
+* **user_dictionary:** make user phrases comparable in weight to system words ([982f69d](https://github.com/rime/librime/commit/982f69d))
+
+
+
+<a name="1.5.0"></a>
+# [1.5.0](https://github.com/rime/librime/compare/1.4.0...1.5.0) (2019-06-06)
+
+
+### Bug Fixes
+
+* **ci:** update build script ([84a1a1b](https://github.com/rime/librime/commit/84a1a1b))
+* **ci:** use submodules in AppVeyor CI build script ([7b515b4](https://github.com/rime/librime/commit/7b515b4))
+* **cmake:** libboost Windows XP compatibility fix ([#270](https://github.com/rime/librime/issues/270)) ([fecfe39](https://github.com/rime/librime/commit/fecfe39)), closes [rime/weasel#337](https://github.com/rime/weasel/issues/337)
+* **CMakeLists.txt:** install header files in all platforms ([821d563](https://github.com/rime/librime/commit/821d563))
+* **CMakeLists.txt:** set "-std=c++11" in CMAKE_CXX_FLAGS ([5d8a836](https://github.com/rime/librime/commit/5d8a836))
+* **config/plugins.h:** memory leak caused by non-virtual destructor ([316a659](https://github.com/rime/librime/commit/316a659)), closes [#259](https://github.com/rime/librime/issues/259)
+* **deploy:** treat schema dependencies as optional; do not report errors if missing ([ff3d5e9](https://github.com/rime/librime/commit/ff3d5e9))
+* **engine:** schema doesn't match the one used by switcher ([e41bb63](https://github.com/rime/librime/commit/e41bb63)), closes [#269](https://github.com/rime/librime/issues/269)
+* **rime_levers_api.h:** customize_bool() misused `bool` type ([42bacc5](https://github.com/rime/librime/commit/42bacc5))
+* **syllabifier:** enable_completion not working ([2714131](https://github.com/rime/librime/commit/2714131)), closes [#343](https://github.com/rime/librime/issues/343)
+* **table_translator:** null pointer exception when dict entries are filtered ([77438a9](https://github.com/rime/librime/commit/77438a9))
+* **test:** compile error in unit test ([7076d9e](https://github.com/rime/librime/commit/7076d9e))
+* **travis-install.sh:** working directory ([97220ce](https://github.com/rime/librime/commit/97220ce))
+
+
+### Features
+
+* **appveyor:** install RIME_PLUGINS  [skip travis] ([c7ce66f](https://github.com/rime/librime/commit/c7ce66f))
+* **CMakeList.txt:** add plugin build support ([#257](https://github.com/rime/librime/issues/257)) ([dfa341b](https://github.com/rime/librime/commit/dfa341b))
+* **contextual_translation:** weight and re-order phrases by context ([2390da3](https://github.com/rime/librime/commit/2390da3))
+* **dict:** specify vocabulary db name in dict settings ([dcdc301](https://github.com/rime/librime/commit/dcdc301))
+* **grammar:** compare homophones/homographs in sentence ([9248a6b](https://github.com/rime/librime/commit/9248a6b))
+* **install-plugins.sh:** git-clone or update plugins ([70483b4](https://github.com/rime/librime/commit/70483b4))
+* **poet:** find best sentence candidates ([b3f4005](https://github.com/rime/librime/commit/b3f4005))
+* **rime_api:** get candidate list from index ([c587900](https://github.com/rime/librime/commit/c587900))
+* **translator:** contextual suggestions in partially selected sentence ([12a7501](https://github.com/rime/librime/commit/12a7501))
+* **translator:** look at preceding text when making sentence ([6ae34de](https://github.com/rime/librime/commit/6ae34de))
+* **travis-ci:** install plugins specified in envvar RIME_PLUGINS ([c857639](https://github.com/rime/librime/commit/c857639))
+
+
+### Performance Improvements
+
+* **dictionary:** refactor DictEntryIterator and do partial sort ([0258c7f](https://github.com/rime/librime/commit/0258c7f))
+
+
+### BREAKING CHANGES
+
+* **rime_levers_api.h:** in signature of C API function `customize_bool()`,
+change type `bool` to `Bool` (alias of `int`).
+
+Impact: the changed function is not in use by any first party code,
+known to be in use by osfans/trime.
+
+
+
+<a name="1.4.0"></a>
+# [1.4.0](https://github.com/rime/librime/compare/1.3.2...1.4.0) (2019-01-16)
+
+
+### Bug Fixes
+
+* **config:** user_config should not fall back to shared data ([68c8a34](https://github.com/rime/librime/commit/68c8a34)), closes [#271](https://github.com/rime/librime/issues/271)
+* **SymlinkingPrebuiltDictionaries:** remove dangling symlinks ([5ad333d](https://github.com/rime/librime/commit/5ad333d)), closes [#241](https://github.com/rime/librime/issues/241)
+* **SymlinkingPrebuiltDictionaries:** remove dangling symlinks ([f8e4ebf](https://github.com/rime/librime/commit/f8e4ebf)), closes [#241](https://github.com/rime/librime/issues/241)
+
+
+### Features
+
+* spelling correction ([#228](https://github.com/rime/librime/issues/228)) ([ad3638a](https://github.com/rime/librime/commit/ad3638a))
+* **Dockerfile:** for build ([#246](https://github.com/rime/librime/issues/246)) ([cafd0d5](https://github.com/rime/librime/commit/cafd0d5))
+
+
+
+## [1.3.2](https://github.com/rime/librime/compare/1.3.1...1.3.2) (2018-11-12)
+
+
+### Bug Fixes
+
+* **CMakeLists.txt:** do not link binaries when building static library ([99573e3](https://github.com/rime/librime/commit/99573e3))
+* **CMakeLists.txt:** do not require boost::signals, which will be deprecated in Boost 1.69 ([8a9ef3b](https://github.com/rime/librime/commit/8a9ef3b)), closes [#225](https://github.com/rime/librime/issues/225)
+* **config_compiler:** ambiguous operator overload with cmake option ENABLE_LOGGING=OFF ([b86b647](https://github.com/rime/librime/commit/b86b647)), closes [#211](https://github.com/rime/librime/issues/211)
+* **config_compiler:** support creating list in-place by __patch and __merge ([0784eb0](https://github.com/rime/librime/commit/0784eb0))
+* **table_translator:** enable encoding uniquified commit history ([74e31bc](https://github.com/rime/librime/commit/74e31bc))
+
+
+### Features
+
+* **language:** shared user dictionary per language (Closes [#184](https://github.com/rime/librime/issues/184)) ([#214](https://github.com/rime/librime/issues/214)) ([9f774e7](https://github.com/rime/librime/commit/9f774e7))
+* always_show_comments option ([#220](https://github.com/rime/librime/issues/220)) ([19cea07](https://github.com/rime/librime/commit/19cea07))
+
+
+
 <a name="1.3.1"></a>
 ## [1.3.1](https://github.com/rime/librime/compare/1.3.0...1.3.1) (2018-04-01)
 

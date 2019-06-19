@@ -17,9 +17,11 @@
 namespace rime {
 
 class Code;
+class Corrector;
 struct DictEntry;
 struct DictEntryCollector;
 class Dictionary;
+class Poet;
 class UserDictionary;
 struct SyllableGraph;
 
@@ -30,19 +32,25 @@ class ScriptTranslator : public Translator,
   ScriptTranslator(const Ticket& ticket);
 
   virtual an<Translation> Query(const string& input,
-                                        const Segment& segment);
+                                const Segment& segment);
   virtual bool Memorize(const CommitEntry& commit_entry);
 
   string FormatPreedit(const string& preedit);
   string Spell(const Code& code);
+  string GetPrecedingText(size_t start) const;
 
   // options
+  int max_homophones() const { return max_homophones_; }
   int spelling_hints() const { return spelling_hints_; }
   bool always_show_comments() const { return always_show_comments_; }
 
  protected:
+  int max_homophones_ = 1;
   int spelling_hints_ = 0;
   bool always_show_comments_ = false;
+  bool enable_correction_ = false;
+  the<Corrector> corrector_;
+  the<Poet> poet_;
 };
 
 }  // namespace rime

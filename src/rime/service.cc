@@ -56,11 +56,11 @@ void Session::OnCommit(const string& commit_text) {
 }
 
 Context* Session::context() const {
-  return engine_ ? engine_->active_context() : NULL;
+  return engine_ ? engine_->active_engine()->context() : NULL;
 }
 
 Schema* Session::schema() const {
-  return engine_ ? engine_->schema() : NULL;
+  return engine_ ? engine_->active_engine()->schema() : NULL;
 }
 
 Service::Service() {
@@ -173,6 +173,13 @@ ResourceResolver* Service::CreateResourceResolver(const ResourceType& type) {
   the<FallbackResourceResolver> resolver(new FallbackResourceResolver(type));
   resolver->set_root_path(deployer().user_data_dir);
   resolver->set_fallback_root_path(deployer().shared_data_dir);
+  return resolver.release();
+}
+
+ResourceResolver* Service::CreateUserSpecificResourceResolver(
+    const ResourceType& type) {
+  the<ResourceResolver> resolver(new ResourceResolver(type));
+  resolver->set_root_path(deployer().user_data_dir);
   return resolver.release();
 }
 

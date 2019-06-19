@@ -4,15 +4,15 @@
 //
 // 2011-07-05 GONG Chen <chen.sst@gmail.com>
 //
-#include <utility>
 #include <boost/filesystem.hpp>
+#include <rime/algo/syllabifier.h>
 #include <rime/common.h>
+#include <rime/dict/dictionary.h>
 #include <rime/resource.h>
 #include <rime/schema.h>
 #include <rime/service.h>
 #include <rime/ticket.h>
-#include <rime/dict/dictionary.h>
-#include <rime/algo/syllabifier.h>
+#include <utility>
 
 namespace rime {
 
@@ -23,8 +23,8 @@ bool compare_chunk_by_head_element(const Chunk& a, const Chunk& b) {
   if (!b.entries || b.cursor >= b.size) return true;
   if (a.remaining_code.length() != b.remaining_code.length())
     return a.remaining_code.length() < b.remaining_code.length();
-  return a.credibility * a.entries[a.cursor].weight >
-         b.credibility * b.entries[b.cursor].weight;  // by weight desc
+  return a.credibility + a.entries[a.cursor].weight >
+         b.credibility + b.entries[b.cursor].weight;  // by weight desc
 }
 
 size_t match_extra_code(const table::Code* extra_code, size_t depth,
@@ -53,93 +53,89 @@ size_t match_extra_code(const table::Code* extra_code, size_t depth,
 
 }  // namespace dictionary
 
-DictEntryIterator::DictEntryIterator()
-    : Base(), table_(NULL), entry_(), entry_count_(0) {
-}
-
-DictEntryIterator::DictEntryIterator(const DictEntryIterator& other)
-    : Base(other), table_(other.table_), entry_(other.entry_),
-      entry_count_(other.entry_count_) {
-}
-
-DictEntryIterator& DictEntryIterator::operator= (DictEntryIterator& other) {
-  DLOG(INFO) << "swapping iterator contents.";
-  swap(other);
-  table_ = other.table_;
-  entry_ = other.entry_;
-  entry_count_ = other.entry_count_;
-  return *this;
-}
-
-bool DictEntryIterator::exhausted() const {
-  return empty();
-}
-
 void DictEntryIterator::AddChunk(dictionary::Chunk&& chunk, Table* table) {
-  push_back(std::move(chunk));
+  chunks_.push_back(std::move(chunk));
   entry_count_ += chunk.size;
   table_ = table;
 }
 
 void DictEntryIterator::Sort() {
-  sort(dictionary::compare_chunk_by_head_element);
+  // partial-sort remaining chunks, move best match to chunk_index_
+  std::partial_sort(
+      chunks_.begin() + chunk_index_,
+      chunks_.begin() + chunk_index_ + 1,
+      chunks_.end(),
+      dictionary::compare_chunk_by_head_element);
 }
 
-void DictEntryIterator::PrepareEntry() {
-  if (empty() || !table_) {
-    return;
-  }
-  const auto& chunk(front());
-  entry_ = New<DictEntry>();
-  const auto& e(chunk.entries[chunk.cursor]);
-  DLOG(INFO) << "creating temporary dict entry '"
-             << table_->GetEntryText(e) << "'.";
-  entry_->code = chunk.code;
-  entry_->text = table_->GetEntryText(e);
-  const double kS = 1e8;
-  entry_->weight = (e.weight + 1) / kS * chunk.credibility;
-  if (!chunk.remaining_code.empty()) {
-    entry_->comment = "~" + chunk.remaining_code;
-    entry_->remaining_code_length = chunk.remaining_code.length();
+void DictEntryIterator::AddFilter(DictEntryFilter filter) {
+  DictEntryFilterBinder::AddFilter(filter);
+  // the introduced filter could invalidate the current or even all the
+  // remaining entries
+  while (!exhausted() && !filter_(Peek())) {
+    FindNextEntry();
   }
 }
 
 an<DictEntry> DictEntryIterator::Peek() {
-  while (!entry_ && !empty()) {
-    PrepareEntry();
-    if (filter_ && !filter_(entry_)) {
-      Next();
+  if (!entry_ && !exhausted() && table_) {
+    // get next entry from current chunk
+    const auto& chunk(chunks_[chunk_index_]);
+    const auto& e(chunk.entries[chunk.cursor]);
+    DLOG(INFO) << "creating temporary dict entry '"
+               << table_->GetEntryText(e) << "'.";
+    entry_ = New<DictEntry>();
+    entry_->code = chunk.code;
+    entry_->text = table_->GetEntryText(e);
+    const double kS = 18.420680743952367; // log(1e8)
+    entry_->weight = e.weight - kS + chunk.credibility;
+    if (!chunk.remaining_code.empty()) {
+      entry_->comment = "~" + chunk.remaining_code;
+      entry_->remaining_code_length = chunk.remaining_code.length();
     }
   }
   return entry_;
 }
 
-bool DictEntryIterator::Next() {
-  entry_.reset();
-  if (empty()) {
+bool DictEntryIterator::FindNextEntry() {
+  if (exhausted()) {
     return false;
   }
-  auto& chunk(front());
+  auto& chunk(chunks_[chunk_index_]);
   if (++chunk.cursor >= chunk.size) {
-    pop_front();
+    ++chunk_index_;
   }
   else {
-    // reorder chunks since front() has got a new head element
+    // reorder chunks since the current chunk has got a new head element
     Sort();
   }
-  return !empty();
+  return !exhausted();
 }
 
+bool DictEntryIterator::Next() {
+  entry_.reset();
+  if (!FindNextEntry()) {
+    return false;
+  }
+  while (filter_ && !filter_(Peek())) {
+    if (!FindNextEntry()) {
+      return false;
+    }
+  }
+  return true;
+}
+
+// Note: does not apply filters
 bool DictEntryIterator::Skip(size_t num_entries) {
   while (num_entries > 0) {
-    if (empty()) return false;
-    auto& chunk(front());
+    if (exhausted()) return false;
+    auto& chunk(chunks_[chunk_index_]);
     if (chunk.cursor + num_entries < chunk.size) {
       chunk.cursor += num_entries;
       return true;
     }
     num_entries -= (chunk.size - chunk.cursor);
-    pop_front();
+    ++chunk_index_;
   }
   return true;
 }
@@ -147,9 +143,9 @@ bool DictEntryIterator::Skip(size_t num_entries) {
 // Dictionary members
 
 Dictionary::Dictionary(const string& name,
-                       const an<Table>& table,
-                       const an<Prism>& prism)
-    : name_(name), table_(table), prism_(prism) {
+                       an<Table> table,
+                       an<Prism> prism)
+    : name_(name), table_(std::move(table)), prism_(std::move(prism)) {
 }
 
 Dictionary::~Dictionary() {
@@ -171,7 +167,7 @@ Dictionary::Lookup(const SyllableGraph& syllable_graph,
   for (auto& v : result) {
     size_t end_pos = v.first;
     for (TableAccessor& a : v.second) {
-      double cr = initial_credibility * a.credibility();
+      double cr = initial_credibility + a.credibility();
       if (a.extra_code()) {
         do {
           size_t actual_end_pos = dictionary::match_extra_code(
@@ -292,23 +288,22 @@ DictionaryComponent::DictionaryComponent()
     : prism_resource_resolver_(
           Service::instance().CreateResourceResolver(kPrismResourceType)),
       table_resource_resolver_(
-          Service::instance().CreateResourceResolver(kTableResourceType)) {
-}
+          Service::instance().CreateResourceResolver(kTableResourceType)) {}
 
 DictionaryComponent::~DictionaryComponent() {
 }
 
 Dictionary* DictionaryComponent::Create(const Ticket& ticket) {
-  if (!ticket.schema) return NULL;
+  if (!ticket.schema) return nullptr;
   Config* config = ticket.schema->config();
   string dict_name;
   if (!config->GetString(ticket.name_space + "/dictionary", &dict_name)) {
     LOG(ERROR) << ticket.name_space << "/dictionary not specified in schema '"
                << ticket.schema->schema_id() << "'.";
-    return NULL;
+    return nullptr;
   }
   if (dict_name.empty()) {
-    return NULL;  // not requiring static dictionary
+    return nullptr;  // not requiring static dictionary
   }
   string prism_name;
   if (!config->GetString(ticket.name_space + "/prism", &prism_name)) {
